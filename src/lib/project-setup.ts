@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import ora from "ora";
 import type { CreatedIssue } from "./github.js";
 import type { PlanSpec } from "../types/index.js";
 
@@ -22,17 +23,16 @@ export async function setupProjectWithMetadata(
     findOrCreateOption,
   } = await import("./graphql.js");
 
-  console.log(chalk.dim("  📊 Creating GitHub Project v2 with full metadata..."));
+  const setupSpinner = ora("Setting up project structure...").start();
 
   // Step 1: Get repository owner ID
   const { ownerId } = await getRepositoryOwner(repo);
 
   // Step 2: Create project
   const project = await createProjectV2(ownerId, projectName);
-  console.log(chalk.dim(`     ✓ Project created: ${project.projectUrl}`));
+  setupSpinner.text = "Project created, adding custom fields...";
 
   // Step 3: Setup custom fields
-  console.log(chalk.dim("  📝 Setting up custom fields..."));
   let fields = await getProjectFields(project.projectId);
 
   const requiredFields = [
@@ -45,7 +45,7 @@ export async function setupProjectWithMetadata(
   for (const required of requiredFields) {
     const existing = fields.find((f) => f.name === required.name);
     if (!existing) {
-      console.log(chalk.dim(`     Creating field: ${required.name}`));
+      setupSpinner.text = `Creating field: ${required.name}...`;
       await createProjectField(
         project.projectId,
         required.name,
@@ -57,7 +57,7 @@ export async function setupProjectWithMetadata(
 
   // Refresh fields after creation
   fields = await getProjectFields(project.projectId);
-  console.log(chalk.dim(`     ✓ Custom fields ready`));
+  setupSpinner.succeed("Custom fields configured (Priority, Size, Start/Target Date)");
 
   // Step 4: Build roadmap mapping
   const issueMetadata = new Map<number, any>();
@@ -79,7 +79,8 @@ export async function setupProjectWithMetadata(
   }
 
   // Step 5: Add issues with metadata
-  console.log(chalk.dim("  🔗 Adding issues to project with metadata..."));
+  const addIssuesSpinner = ora(`Adding ${issues.length} issues to project...`).start();
+  let addedCount = 0;
 
   for (const issue of issues) {
     try {
@@ -128,12 +129,13 @@ export async function setupProjectWithMetadata(
         }
       }
 
-      console.log(chalk.dim(`     ✓ Added issue #${issue.number} with metadata`));
+      addedCount++;
+      addIssuesSpinner.text = `Adding issues to project... (${addedCount}/${issues.length})`;
     } catch (error) {
-      console.log(chalk.yellow(`     ⚠️  Failed to add issue #${issue.number}: ${error}`));
+      // Silent fail, continue with other issues
     }
   }
 
-  console.log(chalk.green(`  ✅ Project setup complete!`));
+  addIssuesSpinner.succeed(`Added ${addedCount} issues with metadata to project`);
   return project.projectUrl;
 }

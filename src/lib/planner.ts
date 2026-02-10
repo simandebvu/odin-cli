@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import ora from "ora";
 import { getCopilotResponse } from "./copilot.js";
 import { createGitHubIssues, createGitHubLabels, createProject } from "./github.js";
 import type { PlanOptions, PlanResult, PlanSpec } from "../types/index.js";
@@ -10,11 +11,12 @@ export async function generatePlan(
   const inputText = await readInputSource(options.source);
 
   // Step 2: Generate PlanSpec with Copilot
-  console.log(chalk.dim("🤖 Generating plan with Copilot...\n"));
+  const planSpinner = ora("Generating plan with Copilot...").start();
   const planSpec = await getCopilotResponse<PlanSpec>({
     prompt: buildPlanPrompt(inputText),
     format: "plan-spec",
   });
+  planSpinner.succeed(`Plan generated: ${planSpec.issues.length} issues, ${planSpec.labels.length} labels`);
 
   if (options.dryRun) {
     return {
@@ -27,19 +29,21 @@ export async function generatePlan(
   }
 
   // Step 3: Create GitHub resources
-  console.log(chalk.dim("📦 Creating GitHub resources...\n"));
-
+  console.log(); // Blank line
   const repo = options.repo || await getCurrentRepo();
 
   // Create labels
+  const labelSpinner = ora(`Creating labels in ${repo}...`).start();
   const labels = await createGitHubLabels(repo, planSpec.labels);
-  console.log(chalk.dim(`  ✓ Created ${labels.length} labels`));
+  labelSpinner.succeed(`Created ${labels.length} labels`);
 
   // Create issues
+  const issueSpinner = ora(`Creating ${planSpec.issues.length} issues...`).start();
   const issues = await createGitHubIssues(repo, planSpec.issues);
-  console.log(chalk.dim(`  ✓ Created ${issues.length} issues`));
+  issueSpinner.succeed(`Created ${issues.length} issues`);
 
   // Create or update project with full metadata
+  const projectSpinner = ora("Creating GitHub Project with roadmap...").start();
   const { setupProjectWithMetadata } = await import("./project-setup.js");
   const projectUrl = await setupProjectWithMetadata(
     repo,
@@ -47,7 +51,7 @@ export async function generatePlan(
     issues,
     planSpec
   );
-  console.log(chalk.dim(`  ✓ Project created with roadmap`));
+  projectSpinner.succeed("Project created with roadmap timeline");
 
   return {
     issues: issues,

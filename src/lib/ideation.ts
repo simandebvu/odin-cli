@@ -1,5 +1,6 @@
 import inquirer from "inquirer";
 import chalk from "chalk";
+import ora from "ora";
 import { getCopilotResponse } from "./copilot.js";
 import { searchCompetitors } from "./competition.js";
 import { applyKillSwitch } from "./kill-switch.js";
@@ -71,24 +72,34 @@ export async function runIdeation(
   // Step 2: Competition analysis (optional)
   let competition = null;
   if (!options.skipCompetition) {
-    console.log(chalk.dim("\n🏆 Competition Analysis\n"));
-    competition = await searchCompetitors(answers.oneLiner);
+    const competitionSpinner = ora("Searching GitHub for competitors...").start();
+    try {
+      competition = await searchCompetitors(answers.oneLiner);
 
-    if (competition.competitors.length > 0) {
-      console.log(chalk.dim(`   Found ${competition.competitors.length} competitors`));
-      console.log(chalk.dim(`   Top: ${competition.competitors[0].name} (${competition.competitors[0].stars}⭐)`));
+      if (competition.competitors.length > 0) {
+        competitionSpinner.succeed(
+          `Found ${competition.competitors.length} competitors (Top: ${competition.competitors[0].name} - ${competition.competitors[0].stars}⭐)`
+        );
+      } else {
+        competitionSpinner.info("No direct competitors found on GitHub");
+      }
+    } catch (error) {
+      competitionSpinner.warn("Competition search unavailable");
     }
   }
 
   // Step 3: Send to Copilot for analysis
-  console.log(chalk.dim("\n🤖 Analyzing with Copilot (Kill Switch Mode)...\n"));
+  const analysisSpinner = ora("Analyzing with Copilot (Kill Switch Mode)...").start();
   const analysis = await getCopilotResponse({
     prompt: buildAnalysisPrompt(answers, competition),
     format: "idea-analysis",
   });
+  analysisSpinner.succeed("Analysis complete");
 
   // Step 3.5: Apply Kill Switch logic (stricter local validation)
+  const killSwitchSpinner = ora("Applying Kill Switch validation...").start();
   const killSwitchAnalysis = applyKillSwitch(analysis, answers, competition);
+  killSwitchSpinner.succeed("Kill Switch validation complete");
 
   // Step 4: Generate idea memo
   const memo = buildIdeaMemo(answers, competition, killSwitchAnalysis);
