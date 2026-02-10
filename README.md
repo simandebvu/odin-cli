@@ -26,12 +26,136 @@ Idea → Interrogation → Validation → GitHub-Native Execution Plan
 ### The Hook
 
 1. **🔍 Interrogation Mode** - Fast "founder interview" before creating anything
-2. **✅ Reality Check** - Surfaces risks, assumptions, proof tests, differentiation
-3. **🏆 Competition Sniff** - Grounded analysis of similar tools
-4. **📊 GitHub-Native Roadmap** - Timeline view with Start/Target dates
-5. **🛑 Kill Switch Honesty** - "This is a feature, not a product" when needed
+2. **🛑 Kill Switch Mode** - Brutally honest SHIP/PIVOT/PARK recommendations
+3. **🏆 Competition Search** - Real-time GitHub API analysis of competitors
+4. **✅ Reality Check** - Surfaces risks, assumptions, proof tests, differentiation
+5. **📊 GitHub-Native Roadmap** - Timeline view with Start/Target dates
 
-**Result:** GitHub Project with roadmap dates, not just issue confetti.
+**Result:** Validated ideas + GitHub Projects with roadmap dates, not just issue confetti.
+
+---
+
+## 🛑 Kill Switch Mode (Brutally Honest)
+
+**The Problem:** Most founders waste months building products no one wants.
+
+**Odin's Solution:** Kill Switch Mode applies strict validation rules *before* you write any code.
+
+### How It Works
+
+Odin analyzes your idea with **harsh criteria**:
+- **Clarity:** Is the problem and solution crystal clear?
+- **Differentiation:** Is there a genuine unfair advantage? (not just "better UX")
+- **Feasibility:** Can a small team actually build and ship this?
+
+### Recommendation Thresholds
+
+- ✅ **SHIP:** All scores >= 7, clear wedge, specific user
+- ⚠️ **PIVOT:** Scores 5-6, idea has potential but needs refinement
+- 🛑 **PARK:** Any score < 5, OR saturated market, OR "nice to have" problem
+
+### Examples
+
+**PARK Example:**
+```
+💡 Idea: "A simple, beautiful todo list app"
+🛑 Recommendation: PARK
+
+Why: This is a feature, not a product. Saturated market with
+10,000+ competitors. "Simpler and more beautiful" can be copied
+in 2 weeks.
+
+Consider instead:
+1. Niche down: "Todo list for ADHD developers"
+2. Bundle as feature in existing product
+3. Solve adjacent, less crowded problem
+```
+
+**SHIP Example:**
+```
+💡 Idea: "GitHub CLI for validated execution plans"
+✅ Recommendation: SHIP
+
+Scores: Clarity 8/10, Differentiation 8/10, Feasibility 9/10
+
+Why: Clear problem, strong wedge (GitHub-native), specific user.
+Build this.
+```
+
+### What Makes This Unique
+
+**Most tools say "yes" to everything.** They'll generate issues for any idea, no matter how weak.
+
+**Odin says "no" to bad ideas.** It saves you from wasting months on products that won't work.
+
+**The Kill Switch catches:**
+- Generic problems with no wedge (todo, notes, calendar apps)
+- Vague user definitions ("everyone", "anyone")
+- Saturated markets with weak differentiation
+- Features masquerading as products
+- "Nice to have" problems (vitamins, not painkillers)
+
+---
+
+## 🏆 Competition Search (Real GitHub Data)
+
+**The Problem:** You don't know what competitors exist until you've already built.
+
+**Odin's Solution:** Real-time GitHub API search that finds and analyzes competitors *during ideation*.
+
+### How It Works
+
+1. **Extract keywords** from your idea one-liner
+2. **Search GitHub** for similar repos (stars >50, top 10 by stars)
+3. **Analyze** stars, activity, language, topics, last update
+4. **Identify** market strengths and gaps
+5. **Integrate** with Kill Switch for smarter recommendations
+
+### What You Get
+
+```
+Competition Analysis:
+
+Found 8 potential competitors on GitHub:
+
+Top competitors:
+1. cli/cli - 37,245⭐ - GitHub's official command line tool
+2. jesseduffield/lazygit - 52,893⭐ - Simple terminal UI for git
+3. charmbracelet/gum - 18,234⭐ - Tool for glamorous shell scripts
+
+Market insights:
+- Established market (cli/cli has 37k stars)
+- Common themes: cli, github, automation, developer-tools
+- Gap: No tools combine idea validation + project planning
+
+Your edge: Opportunity to fill gaps in existing solutions
+```
+
+### Kill Switch Integration
+
+Competition data makes recommendations smarter:
+
+**Scenario 1: Strong competitor + weak differentiation**
+```
+Competitor: cli/cli (37k stars)
+Your differentiation score: 4/10
+Result: 🛑 PARK - "cli/cli has 37,245⭐ and established user base.
+                   Your wedge isn't strong enough."
+```
+
+**Scenario 2: No dominant player**
+```
+Top competitor: 800 stars
+Your differentiation score: 8/10
+Result: ✅ SHIP - "No dominant player. Good wedge. First mover advantage."
+```
+
+**Scenario 3: Inactive competitors**
+```
+Competitors: 5 found, all inactive >6 months
+Your scores: All 7+
+Result: ✅ SHIP - "Market exists but underserved. Gap to exploit."
+```
 
 ---
 
@@ -86,7 +210,12 @@ gh odin ideate
 - What's the smallest proof test?
 - Top 2 risks?
 
-**Output:** `IDEA_MEMO.md` with recommendation: **SHIP / PIVOT / PARK**
+**Output:** `IDEA_MEMO.md` with:
+- **SHIP / PIVOT / PARK** recommendation
+- Competition analysis (real GitHub data)
+- Risk experiments
+- Pivot alternatives (if needed)
+- One-line pitch (if SHIP)
 
 ### 2. Generate Execution Plan
 
@@ -170,10 +299,11 @@ odin-cli/
 |---------|-------|------------|------|
 | Create issues | ✅ | ✅ | ✅ |
 | Create project | ✅ | ✅ | ✅ |
-| Idea interrogation | ❌ | ❌ | ✅ |
-| Validation/risks | ❌ | ❌ | ✅ |
-| Roadmap timeline | ❌ | ❌ | ✅ |
-| Competition analysis | ❌ | ❌ | ✅ |
+| **Idea interrogation** | ❌ | ❌ | ✅ |
+| **Kill Switch (PARK bad ideas)** | ❌ | ❌ | ✅ |
+| **Real-time competition search** | ❌ | ❌ | ✅ |
+| **Validation/risks** | ❌ | ❌ | ✅ |
+| **Roadmap timeline** | ❌ | ❌ | ✅ |
 | AI-powered | ❌ | ❌ | ✅ |
 
 ---
@@ -296,10 +426,11 @@ gh odin plan --text IDEA_MEMO.md --repo demo/repo
 
 ### What Makes This Unique
 
-1. **Idea validation comes first** - interrogation before execution
-2. **GitHub-native timeline** - roadmap view is the viral feature
-3. **AI-powered risk analysis** - surfaces assumptions and experiments
-4. **Kill switch honesty** - recommends PIVOT/PARK when needed
+1. **Kill Switch Mode** - Brutally honest validation that rejects weak ideas
+2. **Real-time competition search** - GitHub API analysis during ideation
+3. **GitHub-native timeline** - roadmap view, no custom UI
+4. **AI-powered strategic analysis** - SHIP/PIVOT/PARK with reasoning
+5. **Concrete alternatives** - Not just "no", but "try this instead"
 
 ### Live Demo
 
@@ -311,16 +442,20 @@ gh odin plan --text IDEA_MEMO.md --repo demo/repo
 
 ## 🗺️ Roadmap
 
+**Completed:**
 - [x] GraphQL Projects v2 integration
 - [x] Custom fields (Priority, Size, dates)
 - [x] Roadmap timeline view
 - [x] Cross-runtime support (Bun/Node)
-- [ ] Competition search (GitHub API + web)
-- [ ] Kill switch mode (honest feedback)
+- [x] **Kill Switch Mode** (brutally honest PARK/PIVOT/SHIP)
+- [x] **Competition Search** (real-time GitHub API)
+
+**Planned:**
 - [ ] One-line pitch generator
 - [ ] .ics export for external calendars
 - [ ] Batch operations (parallel issue creation)
 - [ ] Update existing projects
+- [ ] Web search integration (beyond GitHub)
 
 ---
 
