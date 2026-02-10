@@ -31053,16 +31053,163 @@ function getFallbackResponse(format) {
 // src/lib/competition.ts
 init_source();
 async function searchCompetitors(oneLiner) {
-  console.log(source_default.dim("  ℹ️  Competition search not yet implemented"));
+  console.log(source_default.dim("  \uD83D\uDD0D Searching GitHub for competitors..."));
+  try {
+    const keywords = extractKeywords(oneLiner);
+    console.log(source_default.dim(`     Keywords: ${keywords.join(", ")}`));
+    const competitors = await searchGitHubRepos(keywords);
+    if (competitors.length === 0) {
+      console.log(source_default.dim("     No direct competitors found on GitHub"));
+      return {
+        summary: `No direct GitHub competitors found. This could mean:
+- You're in a new space (good!)
+- Different search terms needed
+- Competition exists outside GitHub`,
+        competitors: [],
+        insights: {
+          strengths: [],
+          gaps: ["No established GitHub solutions"],
+          yourEdge: "First mover advantage in this space"
+        }
+      };
+    }
+    console.log(source_default.dim(`     Found ${competitors.length} potential competitors`));
+    const insights = analyzeCompetitors(competitors, oneLiner);
+    const summary = generateSummary(competitors, insights);
+    return {
+      summary,
+      competitors,
+      insights
+    };
+  } catch (error) {
+    console.log(source_default.yellow(`     ⚠️  Competition search failed: ${error}`));
+    return {
+      summary: "Competition search unavailable. Manual research recommended.",
+      competitors: [],
+      insights: {
+        strengths: [],
+        gaps: []
+      }
+    };
+  }
+}
+function extractKeywords(oneLiner) {
+  const stopWords = ["a", "an", "the", "for", "with", "that", "this", "and", "or", "but"];
+  const words = oneLiner.toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter((w) => w.length > 3 && !stopWords.includes(w));
+  return words.slice(0, 4);
+}
+async function searchGitHubRepos(keywords) {
+  const { spawnCommand: spawnCommand2 } = await Promise.resolve().then(() => (init_runtime(), exports_runtime));
+  const query = keywords.join(" ");
+  const searchQuery = `${query} in:name,description,readme stars:>50`;
+  try {
+    const result = await spawnCommand2([
+      "gh",
+      "api",
+      "search/repositories",
+      "-f",
+      `q=${searchQuery}`,
+      "-f",
+      "sort=stars",
+      "-f",
+      "order=desc",
+      "-f",
+      "per_page=10"
+    ], { stdout: "pipe", stderr: "pipe" });
+    const data = JSON.parse(result.stdout);
+    if (!data.items || data.items.length === 0) {
+      return [];
+    }
+    return data.items.slice(0, 8).map((item) => ({
+      name: item.full_name,
+      url: item.html_url,
+      description: item.description || "No description",
+      stars: item.stargazers_count,
+      lastUpdated: item.updated_at,
+      language: item.language,
+      topics: item.topics || []
+    }));
+  } catch (error) {
+    console.log(source_default.dim(`     GitHub search error: ${error}`));
+    return [];
+  }
+}
+function analyzeCompetitors(competitors, oneLiner) {
+  const sorted = [...competitors].sort((a, b) => b.stars - a.stars);
+  const topCompetitors = sorted.slice(0, 3);
+  const strengths = [];
+  const gaps = [];
+  if (topCompetitors[0]?.stars > 1000) {
+    strengths.push(`Established market (${topCompetitors[0].name} has ${topCompetitors[0].stars.toLocaleString()} stars)`);
+  } else {
+    gaps.push("No dominant player (top repo has <1k stars)");
+  }
+  const recentlyActive = competitors.filter((c) => {
+    const lastUpdate = new Date(c.lastUpdated);
+    const monthsAgo = (Date.now() - lastUpdate.getTime()) / 2592000000;
+    return monthsAgo < 6;
+  });
+  if (recentlyActive.length < competitors.length / 2) {
+    gaps.push("Many repos inactive (>6 months since update)");
+  }
+  const languages = new Set(competitors.map((c) => c.language).filter(Boolean));
+  if (languages.size > 3) {
+    strengths.push(`Multiple implementations (${Array.from(languages).join(", ")})`);
+  }
+  const allTopics = competitors.flatMap((c) => c.topics || []);
+  const topicCounts = allTopics.reduce((acc, topic) => {
+    acc[topic] = (acc[topic] || 0) + 1;
+    return acc;
+  }, {});
+  const commonTopics = Object.entries(topicCounts).filter(([_2, count]) => count >= 3).map(([topic]) => topic);
+  if (commonTopics.length > 0) {
+    strengths.push(`Common themes: ${commonTopics.slice(0, 5).join(", ")}`);
+  }
   return {
-    summary: "Competition analysis requires web search or GitHub API integration (coming soon)",
-    competitors: []
+    strengths,
+    gaps,
+    yourEdge: gaps.length > 0 ? "Opportunity to fill gaps in existing solutions" : undefined
   };
+}
+function generateSummary(competitors, insights) {
+  const topCompetitors = competitors.slice(0, 5);
+  let summary = `Found ${competitors.length} potential competitors on GitHub:
+
+`;
+  summary += `**Top competitors:**
+`;
+  topCompetitors.forEach((c, i) => {
+    summary += `${i + 1}. [${c.name}](${c.url}) - ${c.stars.toLocaleString()}⭐ - ${c.description.slice(0, 80)}${c.description.length > 80 ? "..." : ""}
+`;
+  });
+  summary += `
+**Market insights:**
+`;
+  if (insights.strengths.length > 0) {
+    summary += `
+Strengths of existing solutions:
+`;
+    insights.strengths.forEach((s) => summary += `- ${s}
+`);
+  }
+  if (insights.gaps.length > 0) {
+    summary += `
+Gaps you could exploit:
+`;
+    insights.gaps.forEach((g) => summary += `- ${g}
+`);
+  }
+  if (insights.yourEdge) {
+    summary += `
+**Your edge:** ${insights.yourEdge}`;
+  }
+  return summary;
 }
 
 // src/lib/kill-switch.ts
 function applyKillSwitch(copilotAnalysis, answers, competition) {
   const { scores } = copilotAnalysis;
+  const hasStrongCompetitors = competition && competition.competitors.length > 0 && competition.competitors[0].stars > 5000;
   if (scores.clarity < 5 || scores.differentiation < 5 || scores.feasibility < 5) {
     return {
       ...copilotAnalysis,
@@ -31109,15 +31256,29 @@ function applyKillSwitch(copilotAnalysis, answers, competition) {
   ];
   const isGeneric = genericProblems.some((term) => answers.oneLiner.toLowerCase().includes(term));
   if (isGeneric && scores.differentiation < 7) {
+    const competitorContext = hasStrongCompetitors ? `Top competitor has ${competition.competitors[0].stars.toLocaleString()}⭐. ` : "";
     return {
       ...copilotAnalysis,
       recommendation: "PARK",
       message: "This is a feature, not a product.",
-      reasoning: "Saturated market with low differentiation. You'll burn time and money competing with giants.",
+      reasoning: `${competitorContext}Saturated market with low differentiation. You'll burn time and money competing with giants.`,
       alternatives: [
         "Niche down dramatically (e.g., 'todo list for ADHD developers')",
         "Bundle this as a feature in a larger product",
         "Find an adjacent problem with less competition"
+      ]
+    };
+  }
+  if (hasStrongCompetitors && scores.differentiation < 6) {
+    return {
+      ...copilotAnalysis,
+      recommendation: "PARK",
+      message: "Strong competitors exist with weak differentiation on your side.",
+      reasoning: `${competition.competitors[0].name} has ${competition.competitors[0].stars.toLocaleString()}⭐ and established user base. Your wedge isn't strong enough.`,
+      alternatives: [
+        "Find a niche the leader ignores",
+        "Build on a different platform/ecosystem",
+        "Partner instead of compete"
       ]
     };
   }
@@ -31215,9 +31376,13 @@ async function runIdeation(options) {
   let competition = null;
   if (!options.skipCompetition) {
     console.log(source_default.dim(`
-\uD83D\uDD0D Searching for competitors...
+\uD83C\uDFC6 Competition Analysis
 `));
     competition = await searchCompetitors(answers.oneLiner);
+    if (competition.competitors.length > 0) {
+      console.log(source_default.dim(`   Found ${competition.competitors.length} competitors`));
+      console.log(source_default.dim(`   Top: ${competition.competitors[0].name} (${competition.competitors[0].stars}⭐)`));
+    }
   }
   console.log(source_default.dim(`
 \uD83E\uDD16 Analyzing with Copilot (Kill Switch Mode)...
@@ -31302,8 +31467,18 @@ ${answers.oneLiner}
 ${answers.risks.map((r) => `- ${r}`).join(`
 `)}
 
-${competition ? `## Competition
-${competition.summary || "N/A"}
+${competition && competition.competitors.length > 0 ? `## Competition Analysis
+
+${competition.summary}
+
+${competition.competitors.length > 0 ? `### Competitors Found
+
+${competition.competitors.map((c) => `- **[${c.name}](${c.url})** (${c.stars.toLocaleString()}⭐) - ${c.description}`).join(`
+`)}
+` : ""}
+` : competition ? `## Competition Analysis
+
+${competition.summary}
 ` : ""}
 
 ## Analysis (Kill Switch Mode)

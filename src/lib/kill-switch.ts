@@ -30,15 +30,29 @@ interface IdeaAnswers {
   alternatives?: string;
 }
 
+interface Competition {
+  competitors: Array<{ name: string; stars: number }>;
+  insights: {
+    strengths: string[];
+    gaps: string[];
+  };
+}
+
 /**
  * Apply Kill Switch logic - stricter than Copilot alone
  */
 export function applyKillSwitch(
   copilotAnalysis: Analysis,
   answers: IdeaAnswers,
-  competition: any
+  competition: Competition | null
 ): Analysis {
   const { scores } = copilotAnalysis;
+
+  // Use competition data if available
+  const hasStrongCompetitors =
+    competition &&
+    competition.competitors.length > 0 &&
+    competition.competitors[0].stars > 5000;
 
   // Rule 1: Low scores = PARK
   if (scores.clarity < 5 || scores.differentiation < 5 || scores.feasibility < 5) {
@@ -102,15 +116,34 @@ export function applyKillSwitch(
   );
 
   if (isGeneric && scores.differentiation < 7) {
+    const competitorContext = hasStrongCompetitors
+      ? `Top competitor has ${competition!.competitors[0].stars.toLocaleString()}⭐. `
+      : "";
+
     return {
       ...copilotAnalysis,
       recommendation: "PARK",
       message: "This is a feature, not a product.",
-      reasoning: "Saturated market with low differentiation. You'll burn time and money competing with giants.",
+      reasoning: `${competitorContext}Saturated market with low differentiation. You'll burn time and money competing with giants.`,
       alternatives: [
         "Niche down dramatically (e.g., 'todo list for ADHD developers')",
         "Bundle this as a feature in a larger product",
         "Find an adjacent problem with less competition",
+      ],
+    };
+  }
+
+  // Rule 4b: Strong competitors + weak differentiation = PARK
+  if (hasStrongCompetitors && scores.differentiation < 6) {
+    return {
+      ...copilotAnalysis,
+      recommendation: "PARK",
+      message: "Strong competitors exist with weak differentiation on your side.",
+      reasoning: `${competition!.competitors[0].name} has ${competition!.competitors[0].stars.toLocaleString()}⭐ and established user base. Your wedge isn't strong enough.`,
+      alternatives: [
+        "Find a niche the leader ignores",
+        "Build on a different platform/ecosystem",
+        "Partner instead of compete",
       ],
     };
   }

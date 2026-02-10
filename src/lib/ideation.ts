@@ -71,8 +71,13 @@ export async function runIdeation(
   // Step 2: Competition analysis (optional)
   let competition = null;
   if (!options.skipCompetition) {
-    console.log(chalk.dim("\n🔍 Searching for competitors...\n"));
+    console.log(chalk.dim("\n🏆 Competition Analysis\n"));
     competition = await searchCompetitors(answers.oneLiner);
+
+    if (competition.competitors.length > 0) {
+      console.log(chalk.dim(`   Found ${competition.competitors.length} competitors`));
+      console.log(chalk.dim(`   Top: ${competition.competitors[0].name} (${competition.competitors[0].stars}⭐)`));
+    }
   }
 
   // Step 3: Send to Copilot for analysis
@@ -165,9 +170,29 @@ ${answers.oneLiner}
 ${answers.risks.map((r: string) => `- ${r}`).join("\n")}
 
 ${
-  competition
-    ? `## Competition
-${competition.summary || "N/A"}
+  competition && competition.competitors.length > 0
+    ? `## Competition Analysis
+
+${competition.summary}
+
+${
+  competition.competitors.length > 0
+    ? `### Competitors Found
+
+${competition.competitors
+  .map(
+    (c: any) =>
+      `- **[${c.name}](${c.url})** (${c.stars.toLocaleString()}⭐) - ${c.description}`
+  )
+  .join("\n")}
+`
+    : ""
+}
+`
+    : competition
+    ? `## Competition Analysis
+
+${competition.summary}
 `
     : ""
 }
