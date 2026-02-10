@@ -26,7 +26,8 @@ export const ideateCommand = new Command("ideate")
             `\n✅ Recommendation: ${result.recommendation}\n`
           )
         );
-        console.log(chalk.dim(`Idea memo saved to: ${options.output}\n`));
+        console.log(chalk.green("This idea is worth building."));
+        console.log(chalk.dim(`\nIdea memo saved to: ${options.output}\n`));
 
         if (options.autoPlan) {
           console.log(chalk.yellow("→ Proceeding to plan generation...\n"));
@@ -42,14 +43,18 @@ export const ideateCommand = new Command("ideate")
             `\n⚠️  Recommendation: ${result.recommendation}\n`
           )
         );
+        console.log(chalk.yellow("This idea needs work before you build it.\n"));
         console.log(chalk.dim(result.message));
+        console.log(chalk.dim(`\nSee ${options.output} for pivot suggestions.\n`));
       } else {
         console.log(
           chalk.bold.red(
             `\n🛑 Recommendation: ${result.recommendation}\n`
           )
         );
+        console.log(chalk.red("Do NOT build this. Save your time.\n"));
         console.log(chalk.dim(result.message));
+        console.log(chalk.dim(`\nSee ${options.output} for better alternatives.\n`));
       }
     } catch (error) {
       console.error(chalk.red("\n❌ Error during ideation:"), error);

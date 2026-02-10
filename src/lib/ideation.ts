@@ -2,6 +2,7 @@ import inquirer from "inquirer";
 import chalk from "chalk";
 import { getCopilotResponse } from "./copilot.js";
 import { searchCompetitors } from "./competition.js";
+import { applyKillSwitch } from "./kill-switch.js";
 import type { IdeationResult, IdeationOptions } from "../types/index.js";
 
 export async function runIdeation(
@@ -75,33 +76,46 @@ export async function runIdeation(
   }
 
   // Step 3: Send to Copilot for analysis
-  console.log(chalk.dim("\n🤖 Analyzing with Copilot...\n"));
+  console.log(chalk.dim("\n🤖 Analyzing with Copilot (Kill Switch Mode)...\n"));
   const analysis = await getCopilotResponse({
     prompt: buildAnalysisPrompt(answers, competition),
     format: "idea-analysis",
   });
 
+  // Step 3.5: Apply Kill Switch logic (stricter local validation)
+  const killSwitchAnalysis = applyKillSwitch(analysis, answers, competition);
+
   // Step 4: Generate idea memo
-  const memo = buildIdeaMemo(answers, competition, analysis);
+  const memo = buildIdeaMemo(answers, competition, killSwitchAnalysis);
   const { writeFile } = await import("fs/promises");
   await writeFile(options.outputFile, memo, "utf-8");
 
   return {
-    recommendation: analysis.recommendation,
-    message: analysis.message,
+    recommendation: killSwitchAnalysis.recommendation,
+    message: killSwitchAnalysis.message,
     memo,
     competition,
   };
 }
 
 function buildAnalysisPrompt(answers: any, competition: any): string {
-  return `You are a brutally honest product strategist. Analyze this idea and provide:
+  return `You are a brutally honest product strategist. Your job is to save founders from wasting time on weak ideas.
 
-1. Score (0-10) on: clarity, differentiation, feasibility
-2. Recommendation: SHIP / PIVOT / PARK
-3. If PIVOT: suggest 2-3 sharper angles
-4. Top 2 risks and tiny experiments to test them
-5. One-line pitch
+Analyze this idea with STRICT criteria:
+- Clarity: Is the problem and solution crystal clear?
+- Differentiation: Is there a genuine unfair advantage? (not just "better UX")
+- Feasibility: Can a small team actually build and ship this?
+
+RECOMMENDATION THRESHOLDS:
+- SHIP: All scores >= 7, clear wedge, specific user
+- PIVOT: Scores 5-6, idea has potential but needs refinement
+- PARK: Any score < 5, OR saturated market with no wedge, OR "nice to have" problem
+
+Be HARSH. Most ideas should PIVOT or PARK.
+
+If PARK: Say "This is a feature, not a product" or "This is a vitamin, not a painkiller" and explain why.
+If PIVOT: Suggest 2-3 concrete sharper angles (be specific, not generic).
+If SHIP: Still point out the top 2 risks.
 
 Idea:
 ${JSON.stringify(answers, null, 2)}
@@ -113,13 +127,21 @@ Respond in JSON format:
 {
   "scores": { "clarity": 0-10, "differentiation": 0-10, "feasibility": 0-10 },
   "recommendation": "SHIP" | "PIVOT" | "PARK",
-  "message": "explanation",
-  "risks": [{ "risk": "...", "experiment": "..." }],
-  "pitch": "one-line pitch"
+  "message": "explanation (be brutal but constructive)",
+  "reasoning": "why this score? what's the fatal flaw?",
+  "alternatives": ["concrete pivot 1", "concrete pivot 2", "concrete pivot 3"] (only if PIVOT/PARK),
+  "risks": [{ "risk": "...", "experiment": "tiny test (<1 week)" }],
+  "pitch": "one-line pitch (only if SHIP/PIVOT)"
 }`;
 }
 
 function buildIdeaMemo(answers: any, competition: any, analysis: any): string {
+  const recommendationEmoji = {
+    SHIP: "✅",
+    PIVOT: "⚠️",
+    PARK: "🛑",
+  };
+
   return `# Idea Memo
 
 ## One-liner
@@ -150,26 +172,56 @@ ${competition.summary || "N/A"}
     : ""
 }
 
-## Analysis (Copilot)
+## Analysis (Kill Switch Mode)
 
 **Scores**:
 - Clarity: ${analysis.scores?.clarity || "N/A"}/10
 - Differentiation: ${analysis.scores?.differentiation || "N/A"}/10
 - Feasibility: ${analysis.scores?.feasibility || "N/A"}/10
 
-**Recommendation**: ${analysis.recommendation}
+---
+
+${recommendationEmoji[analysis.recommendation as keyof typeof recommendationEmoji] || "❓"} **Recommendation: ${analysis.recommendation}**
+
+### ${analysis.recommendation === "PARK" ? "Why You Should Not Build This" : analysis.recommendation === "PIVOT" ? "Why This Needs Work" : "Why This Could Work"}
 
 ${analysis.message}
 
-**One-line pitch**: ${analysis.pitch || "TBD"}
+${analysis.reasoning ? `\n**The Fatal Flaw:** ${analysis.reasoning}\n` : ""}
+
+${
+  analysis.alternatives && analysis.alternatives.length > 0
+    ? `### Consider Instead
+
+${analysis.alternatives.map((alt: string, i: number) => `${i + 1}. ${alt}`).join("\n")}
+`
+    : ""
+}
+
+${
+  analysis.risks && analysis.risks.length > 0
+    ? `### Top Risks
+
+${analysis.risks.map((r: any) => `**${r.risk}**\n→ Experiment: ${r.experiment}`).join("\n\n")}
+`
+    : ""
+}
+
+${analysis.pitch ? `### One-Line Pitch\n> ${analysis.pitch}\n` : ""}
+
+---
 
 ## Next Steps
 ${
   analysis.recommendation === "SHIP"
-    ? "Run: `gh odin plan --text IDEA_MEMO.md`"
+    ? "✅ **PROCEED:** Run `gh odin plan --text IDEA_MEMO.md`"
     : analysis.recommendation === "PIVOT"
-    ? "Consider pivoting based on analysis above"
-    : "Park this idea for now"
+    ? "⚠️ **REFINE:** Address the issues above, then run ideation again"
+    : "🛑 **STOP:** Park this idea. Try one of the alternatives above instead."
 }
+
+---
+
+*Generated with [Odin CLI](https://github.com/simandebvu/odin-cli) - Brutally honest idea validation*
 `;
 }

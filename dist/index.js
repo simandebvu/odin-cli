@@ -30996,8 +30996,14 @@ function getFallbackResponse(format) {
   if (format === "idea-analysis") {
     return {
       scores: { clarity: 7, differentiation: 6, feasibility: 8 },
-      recommendation: "SHIP",
-      message: "Copilot analysis unavailable. Manual review recommended.",
+      recommendation: "PIVOT",
+      message: "Copilot analysis unavailable. Using fallback scoring. Manual review strongly recommended.",
+      reasoning: "Unable to perform full analysis without Copilot CLI. These scores are estimates.",
+      alternatives: [
+        "Install Copilot CLI for full analysis: gh extension install github/gh-copilot",
+        "Get manual feedback from domain experts",
+        "Research competition and differentiation more deeply"
+      ],
       risks: [
         {
           risk: "Distribution",
@@ -31008,7 +31014,7 @@ function getFallbackResponse(format) {
           experiment: "Build core MVP in 1 week to validate technical approach"
         }
       ],
-      pitch: "Your one-line pitch here"
+      pitch: "Manual pitch crafting needed without Copilot"
     };
   } else if (format === "plan-spec") {
     return {
@@ -31052,6 +31058,98 @@ async function searchCompetitors(oneLiner) {
     summary: "Competition analysis requires web search or GitHub API integration (coming soon)",
     competitors: []
   };
+}
+
+// src/lib/kill-switch.ts
+function applyKillSwitch(copilotAnalysis, answers, competition) {
+  const { scores } = copilotAnalysis;
+  if (scores.clarity < 5 || scores.differentiation < 5 || scores.feasibility < 5) {
+    return {
+      ...copilotAnalysis,
+      recommendation: "PARK",
+      message: determineParkerReason(scores, answers),
+      reasoning: "One or more scores below threshold (5/10). This needs fundamental rework.",
+      alternatives: generateAlternatives(answers)
+    };
+  }
+  if (!answers.wedge || answers.wedge.length < 10 || answers.wedge.toLowerCase().includes("tbd")) {
+    return {
+      ...copilotAnalysis,
+      recommendation: "PIVOT",
+      message: "No clear differentiation. Every competitor can copy your approach.",
+      reasoning: "Missing unfair advantage. 'Better UX' or 'easier to use' aren't wedges.",
+      alternatives: [
+        "Find a specific niche with unique needs (e.g., 'for X industry')",
+        "Identify a technical advantage (e.g., proprietary data, network effects)",
+        "Target underserved segment competitors ignore"
+      ]
+    };
+  }
+  if (!answers.user || answers.user.toLowerCase().includes("everyone") || answers.user.toLowerCase().includes("anyone") || answers.user.length < 15) {
+    return {
+      ...copilotAnalysis,
+      recommendation: "PIVOT",
+      message: "User is too broad. 'Everyone' means no one.",
+      reasoning: "Vague targeting leads to weak positioning and diluted messaging.",
+      alternatives: [
+        "Narrow to a specific job title or role",
+        "Define by behavior, not demographics (e.g., 'developers who deploy daily')",
+        "Start with smallest viable audience (100-1000 people)"
+      ]
+    };
+  }
+  const genericProblems = [
+    "todo",
+    "task management",
+    "note taking",
+    "calendar",
+    "scheduling",
+    "email",
+    "communication"
+  ];
+  const isGeneric = genericProblems.some((term) => answers.oneLiner.toLowerCase().includes(term));
+  if (isGeneric && scores.differentiation < 7) {
+    return {
+      ...copilotAnalysis,
+      recommendation: "PARK",
+      message: "This is a feature, not a product.",
+      reasoning: "Saturated market with low differentiation. You'll burn time and money competing with giants.",
+      alternatives: [
+        "Niche down dramatically (e.g., 'todo list for ADHD developers')",
+        "Bundle this as a feature in a larger product",
+        "Find an adjacent problem with less competition"
+      ]
+    };
+  }
+  if (scores.clarity >= 5 && scores.clarity < 7 || scores.differentiation >= 5 && scores.differentiation < 7) {
+    return {
+      ...copilotAnalysis,
+      recommendation: "PIVOT",
+      message: copilotAnalysis.message || "Scores are medium. This needs sharpening before you build.",
+      reasoning: "Not fatally flawed, but not strong enough to ship. Refine first.",
+      alternatives: copilotAnalysis.alternatives || generateAlternatives(answers)
+    };
+  }
+  return copilotAnalysis;
+}
+function determineParkerReason(scores, answers) {
+  if (scores.clarity < 5) {
+    return "The problem and solution are unclear. You can't build what you can't articulate.";
+  }
+  if (scores.differentiation < 5) {
+    return "No meaningful differentiation. Why would anyone switch from existing solutions?";
+  }
+  if (scores.feasibility < 5) {
+    return "Feasibility is too low. This requires resources/expertise you likely don't have.";
+  }
+  return "Multiple scores below threshold. Fundamental issues need resolution.";
+}
+function generateAlternatives(answers) {
+  const alternatives = [];
+  alternatives.push(`Niche down: "${answers.oneLiner} for [specific industry/role]"`);
+  alternatives.push("Add this as a feature to an existing product you use daily");
+  alternatives.push("Solve a related but less crowded problem in the same space");
+  return alternatives;
 }
 
 // src/lib/ideation.ts
@@ -31122,30 +31220,41 @@ async function runIdeation(options) {
     competition = await searchCompetitors(answers.oneLiner);
   }
   console.log(source_default.dim(`
-\uD83E\uDD16 Analyzing with Copilot...
+\uD83E\uDD16 Analyzing with Copilot (Kill Switch Mode)...
 `));
   const analysis = await getCopilotResponse({
     prompt: buildAnalysisPrompt(answers, competition),
     format: "idea-analysis"
   });
-  const memo = buildIdeaMemo(answers, competition, analysis);
+  const killSwitchAnalysis = applyKillSwitch(analysis, answers, competition);
+  const memo = buildIdeaMemo(answers, competition, killSwitchAnalysis);
   const { writeFile } = await import("fs/promises");
   await writeFile(options.outputFile, memo, "utf-8");
   return {
-    recommendation: analysis.recommendation,
-    message: analysis.message,
+    recommendation: killSwitchAnalysis.recommendation,
+    message: killSwitchAnalysis.message,
     memo,
     competition
   };
 }
 function buildAnalysisPrompt(answers, competition) {
-  return `You are a brutally honest product strategist. Analyze this idea and provide:
+  return `You are a brutally honest product strategist. Your job is to save founders from wasting time on weak ideas.
 
-1. Score (0-10) on: clarity, differentiation, feasibility
-2. Recommendation: SHIP / PIVOT / PARK
-3. If PIVOT: suggest 2-3 sharper angles
-4. Top 2 risks and tiny experiments to test them
-5. One-line pitch
+Analyze this idea with STRICT criteria:
+- Clarity: Is the problem and solution crystal clear?
+- Differentiation: Is there a genuine unfair advantage? (not just "better UX")
+- Feasibility: Can a small team actually build and ship this?
+
+RECOMMENDATION THRESHOLDS:
+- SHIP: All scores >= 7, clear wedge, specific user
+- PIVOT: Scores 5-6, idea has potential but needs refinement
+- PARK: Any score < 5, OR saturated market with no wedge, OR "nice to have" problem
+
+Be HARSH. Most ideas should PIVOT or PARK.
+
+If PARK: Say "This is a feature, not a product" or "This is a vitamin, not a painkiller" and explain why.
+If PIVOT: Suggest 2-3 concrete sharper angles (be specific, not generic).
+If SHIP: Still point out the top 2 risks.
 
 Idea:
 ${JSON.stringify(answers, null, 2)}
@@ -31157,12 +31266,19 @@ Respond in JSON format:
 {
   "scores": { "clarity": 0-10, "differentiation": 0-10, "feasibility": 0-10 },
   "recommendation": "SHIP" | "PIVOT" | "PARK",
-  "message": "explanation",
-  "risks": [{ "risk": "...", "experiment": "..." }],
-  "pitch": "one-line pitch"
+  "message": "explanation (be brutal but constructive)",
+  "reasoning": "why this score? what's the fatal flaw?",
+  "alternatives": ["concrete pivot 1", "concrete pivot 2", "concrete pivot 3"] (only if PIVOT/PARK),
+  "risks": [{ "risk": "...", "experiment": "tiny test (<1 week)" }],
+  "pitch": "one-line pitch (only if SHIP/PIVOT)"
 }`;
 }
 function buildIdeaMemo(answers, competition, analysis) {
+  const recommendationEmoji = {
+    SHIP: "✅",
+    PIVOT: "⚠️",
+    PARK: "\uD83D\uDED1"
+  };
   return `# Idea Memo
 
 ## One-liner
@@ -31190,21 +31306,51 @@ ${competition ? `## Competition
 ${competition.summary || "N/A"}
 ` : ""}
 
-## Analysis (Copilot)
+## Analysis (Kill Switch Mode)
 
 **Scores**:
 - Clarity: ${analysis.scores?.clarity || "N/A"}/10
 - Differentiation: ${analysis.scores?.differentiation || "N/A"}/10
 - Feasibility: ${analysis.scores?.feasibility || "N/A"}/10
 
-**Recommendation**: ${analysis.recommendation}
+---
+
+${recommendationEmoji[analysis.recommendation] || "❓"} **Recommendation: ${analysis.recommendation}**
+
+### ${analysis.recommendation === "PARK" ? "Why You Should Not Build This" : analysis.recommendation === "PIVOT" ? "Why This Needs Work" : "Why This Could Work"}
 
 ${analysis.message}
 
-**One-line pitch**: ${analysis.pitch || "TBD"}
+${analysis.reasoning ? `
+**The Fatal Flaw:** ${analysis.reasoning}
+` : ""}
+
+${analysis.alternatives && analysis.alternatives.length > 0 ? `### Consider Instead
+
+${analysis.alternatives.map((alt, i) => `${i + 1}. ${alt}`).join(`
+`)}
+` : ""}
+
+${analysis.risks && analysis.risks.length > 0 ? `### Top Risks
+
+${analysis.risks.map((r) => `**${r.risk}**
+→ Experiment: ${r.experiment}`).join(`
+
+`)}
+` : ""}
+
+${analysis.pitch ? `### One-Line Pitch
+> ${analysis.pitch}
+` : ""}
+
+---
 
 ## Next Steps
-${analysis.recommendation === "SHIP" ? "Run: `gh odin plan --text IDEA_MEMO.md`" : analysis.recommendation === "PIVOT" ? "Consider pivoting based on analysis above" : "Park this idea for now"}
+${analysis.recommendation === "SHIP" ? "✅ **PROCEED:** Run `gh odin plan --text IDEA_MEMO.md`" : analysis.recommendation === "PIVOT" ? "⚠️ **REFINE:** Address the issues above, then run ideation again" : "\uD83D\uDED1 **STOP:** Park this idea. Try one of the alternatives above instead."}
+
+---
+
+*Generated with [Odin CLI](https://github.com/simandebvu/odin-cli) - Brutally honest idea validation*
 `;
 }
 
@@ -31225,7 +31371,9 @@ var ideateCommand = new Command("ideate").description("Interrogate your idea bef
       console.log(source_default.bold.green(`
 ✅ Recommendation: ${result.recommendation}
 `));
-      console.log(source_default.dim(`Idea memo saved to: ${options.output}
+      console.log(source_default.green("This idea is worth building."));
+      console.log(source_default.dim(`
+Idea memo saved to: ${options.output}
 `));
       if (options.autoPlan) {
         console.log(source_default.yellow(`→ Proceeding to plan generation...
@@ -31238,12 +31386,22 @@ var ideateCommand = new Command("ideate").description("Interrogate your idea bef
       console.log(source_default.bold.yellow(`
 ⚠️  Recommendation: ${result.recommendation}
 `));
+      console.log(source_default.yellow(`This idea needs work before you build it.
+`));
       console.log(source_default.dim(result.message));
+      console.log(source_default.dim(`
+See ${options.output} for pivot suggestions.
+`));
     } else {
       console.log(source_default.bold.red(`
 \uD83D\uDED1 Recommendation: ${result.recommendation}
 `));
+      console.log(source_default.red(`Do NOT build this. Save your time.
+`));
       console.log(source_default.dim(result.message));
+      console.log(source_default.dim(`
+See ${options.output} for better alternatives.
+`));
     }
   } catch (error) {
     console.error(source_default.red(`

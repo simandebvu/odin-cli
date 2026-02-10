@@ -49,8 +49,14 @@ function getFallbackResponse(format: string): any {
   if (format === "idea-analysis") {
     return {
       scores: { clarity: 7, differentiation: 6, feasibility: 8 },
-      recommendation: "SHIP",
-      message: "Copilot analysis unavailable. Manual review recommended.",
+      recommendation: "PIVOT",
+      message: "Copilot analysis unavailable. Using fallback scoring. Manual review strongly recommended.",
+      reasoning: "Unable to perform full analysis without Copilot CLI. These scores are estimates.",
+      alternatives: [
+        "Install Copilot CLI for full analysis: gh extension install github/gh-copilot",
+        "Get manual feedback from domain experts",
+        "Research competition and differentiation more deeply",
+      ],
       risks: [
         {
           risk: "Distribution",
@@ -61,7 +67,7 @@ function getFallbackResponse(format: string): any {
           experiment: "Build core MVP in 1 week to validate technical approach",
         },
       ],
-      pitch: "Your one-line pitch here",
+      pitch: "Manual pitch crafting needed without Copilot",
     };
   } else if (format === "plan-spec") {
     return {
